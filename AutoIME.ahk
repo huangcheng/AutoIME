@@ -54,6 +54,8 @@ AddProcessToListView()
 {
     global LV
 
+    store := Map()
+
     HWNDs := WinGetList(, , "Task Manager")
 
     ImageListID := IL_Create(HWNDs.Length)
@@ -71,6 +73,11 @@ AddProcessToListView()
 
         Name := ProcessGetName(pid)
         Path := ProcessGetPath(pid)
+
+        if store.Has(Name)
+            continue
+
+        store[Name] := 1
 
         if not DllCall(
             "Shell32\SHGetFileInfoW",
