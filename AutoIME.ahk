@@ -10,14 +10,51 @@ CreateGUI()
 
     global LV := Win.Add("ListView", "+Checked +Redraw +Report r14 x10 w208", ["进程名", "输入状态"])
 
+    LV.OnEvent("ContextMenu", ShowContextMenu)
+
     Win.Show
+}
+
+CreateContextMenu()
+{
+    global ContextMenu := Menu()
+
+    count := 256
+
+    buffer_size := A_PtrSize * count
+
+    buf := Buffer(buffer_size, 0)
+
+    DllCall("lib\ime\GetIMEs", "Ptr", buf, "UInt", count)
+
+    IMEs := StrGet(buf)
+    IMEs := StrSplit(IMEs, "|")
+
+    for i, IME in IMEs
+    {
+        ContextMenu.Add(IME, AssociateInputMethod)
+    }
+
+}
+
+AssociateInputMethod(ItemName, *)
+{
+    global LV
+
+    FocusedRowNumber := LV.GetNext(0, "F")
+    if not FocusedRowNumber
+        return
+
+    LV.Modify(FocusedRowNumber, , , ItemName)
+
+    LV.ModifyCol()
 }
 
 AddProcessToListView()
 {
     global LV
 
-    HWNDs := WinGetList(, , "Program Manager")
+    HWNDs := WinGetList(, , "Task Manager")
 
     ImageListID := IL_Create(HWNDs.Length)
 
@@ -67,9 +104,18 @@ AddProcessToListView()
     LV.ModifyCol()
 }
 
+ShowContextMenu(LV, Item, IsRightClick, X, Y)  ; In response to right-click or Apps key.
+{
+    global ContextMenu
+
+    ContextMenu.Show(X, Y)
+}
+
+
 Main()
 {
     CreateGUI()
+    CreateContextMenu()
     AddProcessToListView()
 }
 

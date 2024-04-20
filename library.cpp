@@ -3,24 +3,17 @@
 
 #include "library.h"
 
-bool GetIMEsByKeyboard(_In_ int keyborad, _Inout_ LPTSTR lpBuffer, _In_ size_t numberOfElements)
+bool GetIMEs(_Inout_ LPTSTR lpBuffer, _In_ size_t numberOfElements)
 {
-    bool result = true;
+    bool result = false;
     bool initialized = false;
 
     ITfInputProcessorProfiles* lpProfiles = nullptr;
-
-    IEnumTfLanguageProfiles* lpEnum = nullptr;
+    ITfInputProcessorProfileMgr* lpMgr = nullptr;
+    IEnumTfInputProcessorProfiles* lpEnum = nullptr;
 
     __try
     {
-        if (lpBuffer == nullptr)
-        {
-            result = false;
-
-            __leave;
-        }
-
         HRESULT hr = CoInitialize(nullptr);
 
         if (FAILED(hr))
@@ -30,16 +23,12 @@ bool GetIMEsByKeyboard(_In_ int keyborad, _Inout_ LPTSTR lpBuffer, _In_ size_t n
             __leave;
         }
 
-        initialized = true;
-
-        TCHAR buf[MAX_PATH] = { 0 };
-
         hr = CoCreateInstance(
-            CLSID_TF_InputProcessorProfiles,
-            nullptr,
-            CLSCTX_INPROC_SERVER,
-            IID_ITfInputProcessorProfiles,
-            (VOID**)&lpProfiles
+                CLSID_TF_InputProcessorProfiles,
+                nullptr,
+                CLSCTX_INPROC_SERVER,
+                IID_ITfInputProcessorProfileMgr,
+                (LPVOID*)&lpMgr
         );
 
         if (FAILED(hr))
@@ -49,7 +38,13 @@ bool GetIMEsByKeyboard(_In_ int keyborad, _Inout_ LPTSTR lpBuffer, _In_ size_t n
             __leave;
         }
 
-        hr = lpProfiles->EnumLanguageProfiles(keyborad, &lpEnum);
+        hr = CoCreateInstance(
+                CLSID_TF_InputProcessorProfiles,
+                nullptr,
+                CLSCTX_INPROC_SERVER,
+                IID_ITfInputProcessorProfiles,
+                (LPVOID*)&lpProfiles
+        );
 
         if (FAILED(hr))
         {
@@ -58,43 +53,73 @@ bool GetIMEsByKeyboard(_In_ int keyborad, _Inout_ LPTSTR lpBuffer, _In_ size_t n
             __leave;
         }
 
-        if (lpEnum != nullptr)
+        hr = lpMgr->EnumProfiles(0, &lpEnum);
+
+        if (FAILED(hr))
         {
-            TF_LANGUAGEPROFILE profile;
-            ULONG fetched = 0;
+            result = false;
 
-            while (lpEnum->Next(1, &profile, &fetched) == S_OK)
+            __leave;
+        }
+
+        TF_INPUTPROCESSORPROFILE profile = { 0 };
+
+        ULONG fetched = 0;
+
+        while (lpEnum->Next(1, &profile, &fetched) == S_OK)
+        {
+            BSTR bstrDest = nullptr;
+            BOOL enabled = false;
+
+            hr = lpProfiles->IsEnabledLanguageProfile(
+                    profile.clsid,
+                    profile.langid,
+                    profile.guidProfile,
+                    &enabled
+            );
+
+            if (FAILED(hr))
             {
-                BSTR bstrDesc = nullptr;
-                BOOL bEnabled = false;
+                result = false;
 
-                hr = lpProfiles->IsEnabledLanguageProfile(profile.clsid, profile.langid, profile.guidProfile, &bEnabled);
+                __leave;
+            }
 
-                if (SUCCEEDED(hr) && bEnabled) {
-                    hr = lpProfiles->GetLanguageProfileDescription(profile.clsid, profile.langid, profile.guidProfile, &bstrDesc);
+            if (!enabled)
+            {
+                continue;
+            }
 
-                    if (SUCCEEDED(hr))
-                    {
-                        _tcscat_s(buf, MAX_PATH, bstrDesc);
-                        _tcscat_s(buf, MAX_PATH, TEXT("|"));
+            hr = lpProfiles->GetLanguageProfileDescription(
+                    profile.clsid,
+                    profile.langid,
+                    profile.guidProfile,
+                    &bstrDest
+            );
 
-                        SysFreeString(bstrDesc);
-                    }
+            if (SUCCEEDED(hr))
+            {
+                if (_tcslen(lpBuffer) + _tcslen(bstrDest) + 1 < numberOfElements)
+                {
+                    _tcscat_s(lpBuffer, numberOfElements, bstrDest);
+                    _tcscat_s(lpBuffer, numberOfElements, TEXT("|"));
                 }
+
+                SysFreeString(bstrDest);
             }
 
-            auto c = _tcsrchr(buf, TEXT('|'));
-
-            if (c != nullptr)
-            {
-                *c = TEXT('\0');
-            }
-
-            _tcsncpy_s(lpBuffer, numberOfElements, buf, _countof(buf));
+            ZeroMemory(&profile, sizeof(TF_INPUTPROCESSORPROFILE));
         }
     }
     __finally
     {
+        if (lpMgr != nullptr)
+        {
+            lpMgr->Release();
+
+            lpMgr = nullptr;
+        }
+
         if (lpProfiles != nullptr)
         {
             lpProfiles->Release();
@@ -106,7 +131,7 @@ bool GetIMEsByKeyboard(_In_ int keyborad, _Inout_ LPTSTR lpBuffer, _In_ size_t n
         {
             lpEnum->Release();
 
-            lpEnum = nullptr;
+            lpProfiles = nullptr;
         }
 
         if (initialized)
@@ -114,6 +139,16 @@ bool GetIMEsByKeyboard(_In_ int keyborad, _Inout_ LPTSTR lpBuffer, _In_ size_t n
             CoUninitialize();
         }
     }
+
+    if (_tcslen(lpBuffer) > 0)
+    {
+        auto c = _tcsrchr(lpBuffer, TEXT('|'));
+
+        if (c != nullptr)
+            {
+                *c = TEXT('\0');
+            }
+        }
 
     return result;
 }
