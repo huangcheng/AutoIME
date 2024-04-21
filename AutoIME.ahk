@@ -420,6 +420,9 @@ AddProfile(Control, Info)
 {
     global ProfileSetsDir
     global ProfileSets
+    global CurrentProfile
+    global ProfileSetsList
+    global ProfileNameEdit
 
     FileName := ProfileNameEdit.value
 
@@ -447,13 +450,27 @@ AddProfile(Control, Info)
     ProfileSetsList.Delete()
     ProfileSetsList.Add(ProfileSets)
 
+    for i, Profile in ProfileSets {
+        if (Profile = FileName) {
+            ProfileSetsList.Choose(i)
+        }
+    }
+
     RefreshTrayMenu()
+
+    CurrentProfile := FileName
+
+    IniWrite(CurrentProfile, ConfigFile, "Config", "CurrentProfile")
+
+    Refresh()
 }
 
 RemoveProfile(Control, Info)
 {
     global ProfileSetsDir
     global ProfileSets
+    global ProfileNameEdit
+    global ProfileSetsList
 
     FileName := ProfileNameEdit.value
 
