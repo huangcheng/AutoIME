@@ -324,6 +324,8 @@ ProfileSetsAction(HotkeyName)
         return
     }
 
+    Index := 0
+
     loop ProfileSets.Length
     {
         if (ProfileSets[A_Index] = CurrentProfile)
