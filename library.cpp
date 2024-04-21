@@ -3,10 +3,10 @@
 
 #include "library.h"
 
-bool GetIMEs(_Inout_ LPTSTR lpBuffer, _In_ size_t numberOfElements)
+BOOL GetIMEs(_Inout_ LPTSTR lpBuffer, _In_ size_t numberOfElements)
 {
-    bool result = false;
-    bool initialized = false;
+    BOOL result = TRUE;
+    BOOL initialized = FALSE;
 
     ITfInputProcessorProfiles* lpProfiles = nullptr;
     ITfInputProcessorProfileMgr* lpMgr = nullptr;
@@ -18,7 +18,7 @@ bool GetIMEs(_Inout_ LPTSTR lpBuffer, _In_ size_t numberOfElements)
 
         if (FAILED(hr))
         {
-            result = false;
+            result = FALSE;
 
             __leave;
         }
@@ -33,7 +33,7 @@ bool GetIMEs(_Inout_ LPTSTR lpBuffer, _In_ size_t numberOfElements)
 
         if (FAILED(hr))
         {
-            result = false;
+            result = FALSE;
 
             __leave;
         }
@@ -48,7 +48,7 @@ bool GetIMEs(_Inout_ LPTSTR lpBuffer, _In_ size_t numberOfElements)
 
         if (FAILED(hr))
         {
-            result = false;
+            result = FALSE;
 
             __leave;
         }
@@ -57,7 +57,7 @@ bool GetIMEs(_Inout_ LPTSTR lpBuffer, _In_ size_t numberOfElements)
 
         if (FAILED(hr))
         {
-            result = false;
+            result = FALSE;
 
             __leave;
         }
@@ -69,7 +69,7 @@ bool GetIMEs(_Inout_ LPTSTR lpBuffer, _In_ size_t numberOfElements)
         while (lpEnum->Next(1, &profile, &fetched) == S_OK)
         {
             BSTR bstrDest = nullptr;
-            BOOL enabled = false;
+            BOOL enabled = FALSE;
 
             hr = lpProfiles->IsEnabledLanguageProfile(
                     profile.clsid,
@@ -80,7 +80,7 @@ bool GetIMEs(_Inout_ LPTSTR lpBuffer, _In_ size_t numberOfElements)
 
             if (FAILED(hr))
             {
-                result = false;
+                result = FALSE;
 
                 __leave;
             }
@@ -153,9 +153,10 @@ bool GetIMEs(_Inout_ LPTSTR lpBuffer, _In_ size_t numberOfElements)
     return result;
 }
 
-bool SetIME(_In_ LPCTSTR name) {
-    bool result = false;
-    bool initialized = false;
+BOOL SetIME(_In_ LPCTSTR name)
+{
+    bool result = TRUE;
+    bool initialized = FALSE;
 
     ITfInputProcessorProfiles* lpProfiles = nullptr;
     ITfInputProcessorProfileMgr* lpMgr = nullptr;
@@ -167,7 +168,7 @@ bool SetIME(_In_ LPCTSTR name) {
 
         if (FAILED(hr))
         {
-            result = false;
+            result = FALSE;
 
             __leave;
         }
@@ -182,7 +183,7 @@ bool SetIME(_In_ LPCTSTR name) {
 
         if (FAILED(hr))
         {
-            result = false;
+            result = FALSE;
 
             __leave;
         }
@@ -197,7 +198,7 @@ bool SetIME(_In_ LPCTSTR name) {
 
         if (FAILED(hr))
         {
-            result = false;
+            result = FALSE;
 
             __leave;
         }
@@ -206,7 +207,7 @@ bool SetIME(_In_ LPCTSTR name) {
 
         if (FAILED(hr))
         {
-            result = false;
+            result = FALSE;
 
             __leave;
         }
@@ -246,7 +247,7 @@ bool SetIME(_In_ LPCTSTR name) {
                         break;
                     }
                     else {
-                        result = false;
+                        result = FALSE;
 
                         __leave;
                     }

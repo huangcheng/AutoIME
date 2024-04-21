@@ -7,9 +7,9 @@
 #include <windows.h>
 
 extern "C" {
-   bool GetIMEs(_Inout_ LPTSTR lpBuffer, _In_ size_t numberOfElements);
+    __declspec(dllexport) BOOL GetIMEs(_Inout_ LPTSTR lpBuffer, _In_ size_t numberOfElements);
 
-   bool SetIME(_In_ LPCTSTR name);
+    __declspec(dllexport) BOOL SetIME(_In_ LPCTSTR name);
 };
 
 #endif //AUTOIME_LIBRARY_H
