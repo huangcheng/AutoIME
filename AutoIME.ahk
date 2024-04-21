@@ -17,6 +17,11 @@ InitConfigs()
 {
     global CurrentProfile := IniRead(ConfigFile, "Config", "CurrentProfile", "default")
 
+    if ( not CurrentProfile)
+    {
+        CurrentProfile := "default"
+    }
+
     global ProfileSetsDir
 
     global ProfileSets := []
@@ -34,8 +39,6 @@ InitConfigs()
         }
 
         FileAppend("", DefaultProfile, "UTF-16")
-
-        ProfileSets.Push("default")
     }
 }
 
@@ -252,30 +255,31 @@ ContextMenuHandler(ItemName, *)
         return
     }
 
-    FocusedRowNumber := LV.GetNext(0, "F")
+    RowNumber := 0
 
-    if ( not FocusedRowNumber)
+    Loop
     {
-        return
+        RowNumber := LV.GetNext(RowNumber)
+
+        if ( not RowNumber)
+        {
+            break
+        }
+
+        ItemState := SendMessage(0x102C, RowNumber - 1, 0xF000, LV)
+        IsChecked := (ItemState >> 12) - 1
+
+        if (IsChecked) {
+            SetImeForProcess(LV.GetText(RowNumber, 1), ItemName = "清除" ? "" : ItemName, true)
+        }
+
+        if (ItemName = "清除")
+        {
+            LV.Modify(RowNumber, , , "")
+        } else {
+            LV.Modify(RowNumber, , , ItemName)
+        }
     }
-
-    ItemState := SendMessage(0x102C, FocusedRowNumber - 1, 0xF000, LV)
-    IsChecked := (ItemState >> 12) - 1
-
-    if (IsChecked) {
-        SetImeForProcess(LV.GetText(FocusedRowNumber, 1), ItemName = "清除" ? "" : ItemName, true)
-    }
-
-    if (ItemName = "清除")
-    {
-        LV.Modify(FocusedRowNumber, , , "")
-
-        LV.ModifyCol()
-
-        return
-    }
-
-    LV.Modify(FocusedRowNumber, , , ItemName)
 
     LV.ModifyCol()
 }
@@ -445,24 +449,7 @@ AddProfile(Control, Info)
 
     FileAppend("", FileFullName, "UTF-16")
 
-    ScanProfileSets()
-
-    ProfileSetsList.Delete()
-    ProfileSetsList.Add(ProfileSets)
-
-    for i, Profile in ProfileSets {
-        if (Profile = FileName) {
-            ProfileSetsList.Choose(i)
-        }
-    }
-
-    RefreshTrayMenu()
-
-    CurrentProfile := FileName
-
-    IniWrite(CurrentProfile, ConfigFile, "Config", "CurrentProfile")
-
-    Refresh()
+    SetCurrentProfile(FileName)
 }
 
 RemoveProfile(Control, Info)
@@ -488,12 +475,7 @@ RemoveProfile(Control, Info)
 
     FileDelete(FileFullName)
 
-    ScanProfileSets()
-
-    ProfileSetsList.Delete()
-    ProfileSetsList.Add(ProfileSets)
-
-    RefreshTrayMenu()
+    SetCurrentProfile("")
 }
 
 LVItemCheckHandler(Control, Item, Checked)
@@ -533,6 +515,36 @@ SetImeForProcess(Process, IME, Checked)
     {
         IniDelete(Config, Process)
     }
+}
+
+SetCurrentProfile(ProfileName)
+{
+    global CurrentProfile
+    global ProfileSetsList
+    global ProfileNameEdit
+    global ProfileSets
+    global ConfigFile
+
+    ScanProfileSets()
+
+    ProfileSetsList.Delete()
+    ProfileSetsList.Add(ProfileSets)
+
+    for i, Profile in ProfileSets {
+        if (Profile = ProfileName) {
+            ProfileSetsList.Choose(i)
+        }
+    }
+
+    CurrentProfile := ProfileName
+
+    ProfileNameEdit.Value := ProfileName
+
+    IniWrite(CurrentProfile, ConfigFile, "Config", "CurrentProfile")
+
+    Refresh()
+
+    RefreshTrayMenu()
 }
 ;************************** Hotkeys *******************************
 RegisterHotkeys()
