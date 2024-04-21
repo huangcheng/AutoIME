@@ -6,7 +6,7 @@
 
 InitGlobals()
 {
-    global RuleSetsDir := A_WorkingDir . "\rules"
+    global ProfileSetsDir := A_WorkingDir . "\Profiles"
 
     global ConfigFile := A_WorkingDir . "\config.ini"
 
@@ -15,27 +15,41 @@ InitGlobals()
 
 InitConfigs()
 {
-    global CurrentRule := IniRead(ConfigFile, "Config", "CurrentRule", "")
+    global CurrentProfile := IniRead(ConfigFile, "Config", "CurrentProfile", "default")
 
-    global RuleSetsDir
+    global ProfileSetsDir
 
-    global RuleSets := []
+    global ProfileSets := []
 
     global StartStopHotkey := IniRead(ConfigFile, "Hotkeys", "StartStop", "")
-    global RuleSetsHotkey := IniRead(ConfigFile, "Hotkeys", "RuleSets", "")
+    global ProfileSetsHotkey := IniRead(ConfigFile, "Hotkeys", "ProfileSets", "")
+
+    DefaultProfile := ProfileSetsDir . "\default.ini"
+
+    if (ProfileSets.Length = 0)
+    {
+        if ( not DirExist(ProfileSetsDir))
+        {
+            DirCreate(ProfileSetsDir)
+        }
+
+        FileAppend("", DefaultProfile, "UTF-16")
+
+        ProfileSets.Push("default")
+    }
 }
 
-ScanRuleSets()
+ScanProfileSets()
 {
-    global RuleSetsDir
+    global ProfileSetsDir
 
-    global RuleSets := []
+    global ProfileSets := []
 
-    Loop Files, RuleSetsDir . "\*.ini", "F"
+    Loop Files, ProfileSetsDir . "\*.ini", "F"
     {
         FileName := A_LoopFileName
         FileName := SubStr(FileName, 1, StrLen(FileName) - StrLen(A_LoopFileExt) - 1)
-        RuleSets.Push(FileName)
+        ProfileSets.Push(FileName)
     }
 }
 
@@ -52,36 +66,37 @@ CreateGUI()
 
     ;************************** Hotkeys GroupBox *******************************
     global StartStopHotkey
-    global RuleSetsHotkey
+    global ProfileSetsHotkey
+    global CurrentProfile
 
     Win.Add("GroupBox", "Wrap x10 r3 h0 " . GuiWidth, "快捷键")
     Win.Add("Text", "X20 YP+20 W60 " . ControlHeight, "开关快捷键")
     Win.Add("Hotkey", "XP+66 YP-2 vChosenStartSopHotkey " . ControlHeight, StartStopHotkey).OnEvent("Change", HotkeyHandler)
 
     Win.Add("Text", "X20 Y54 W60 " . ControlHeight, "预设快捷键")
-    Win.Add("Hotkey", "XP+66 YP-2 vChosenRuleSetsHotkey " . ControlHeight, RuleSetsHotkey).OnEvent("Change", HotkeyHandler)
+    Win.Add("Hotkey", "XP+66 YP-2 vChosenProfileSetsHotkey " . ControlHeight, ProfileSetsHotkey).OnEvent("Change", HotkeyHandler)
 
     global LV := Win.Add("ListView", "+Checked +Redraw +Report R14 X10 " . GuiWidth, ["进程名", "输入状态"])
     LV.OnEvent("ContextMenu", ShowContextMenu)
     LV.OnEvent("ItemCheck", LVItemCheckHandler)
     LV.Focus()
 
-    ;************************** RuleSets GroupBox *******************************
+    ;************************** ProfileSets GroupBox *******************************
     Win.Add("GroupBox", "Wrap x10 r3 h1 " . GuiWidth, "预设")
     Win.Add("Text", "X20 YP+20 W50 " . ControlHeight, "预设名称")
-    global RuleNameEdit := Win.Add("Edit", "XP+50 YP-3 " . InputWdith . " " . ControlHeight)
-    Win.Add("Button", "XP+135 W20 " . ControlHeight, "＋").OnEvent("Click", AddRule)
-    Win.Add("Button", "XP+25 W20 " . ControlHeight, "－").OnEvent("Click", RemoveRule)
+    global ProfileNameEdit := Win.Add("Edit", "XP+50 YP-3 " . InputWdith . " " . ControlHeight, CurrentProfile)
+    Win.Add("Button", "XP+135 W20 " . ControlHeight, "＋").OnEvent("Click", AddProfile)
+    Win.Add("Button", "XP+25 W20 " . ControlHeight, "－").OnEvent("Click", RemoveProfile)
 
     Win.Add("Text", "X20 YP+30 W50 " . ControlHeight, "预设选择")
-    global RuleSetsList := Win.Add("DropDownList", "XP+50 YP-3 " . InputWdith, RuleSets)
-    RuleSetsList.OnEvent("Change", RuleSetsChangeHandler)
+    global ProfileSetsList := Win.Add("DropDownList", "XP+50 YP-3 " . InputWdith, ProfileSets)
+    ProfileSetsList.OnEvent("Change", ProfileSetsChangeHandler)
 
-    loop RuleSets.Length
+    loop ProfileSets.Length
     {
-        if (RuleSets[A_Index] = CurrentRule)
+        if (ProfileSets[A_Index] = CurrentProfile)
         {
-            RuleSetsList.Choose(A_Index)
+            ProfileSetsList.Choose(A_Index)
         }
     }
 
@@ -117,7 +132,24 @@ CreateContextMenu()
 
 CreateTrayMenu()
 {
+    global Running
+    global CurrentProfile
+
     A_TrayMenu.Delete()
+
+    A_TrayMenu.Add(Running ? "开" : "关", TrayMenuHandler)
+
+    SubMenu := Menu()
+
+    for i, Profile in ProfileSets {
+        SubMenu.Add(Profile, SwitchProfileHandler)
+
+        if (Profile = CurrentProfile) {
+            SubMenu.Check(Profile)
+        }
+    }
+
+    A_TrayMenu.Add("预设", SubMenu)
 
     A_TrayMenu.Add("重启", TrayMenuHandler)
     A_TrayMenu.Add("退出", TrayMenuHandler)
@@ -125,10 +157,12 @@ CreateTrayMenu()
     OnMessage(0x404, NotifyIcon)
 }
 
+RefreshTrayMenu := CreateTrayMenu
+
 AddProcessToListView()
 {
     global LV
-    global CurrentRule
+    global CurrentProfile
 
     store := Map()
 
@@ -181,10 +215,10 @@ AddProcessToListView()
                 DllCall("DestroyIcon", "Ptr", hIcon)
             }
 
-            if ( not CurrentRule) {
+            if ( not CurrentProfile) {
                 LV.Add("Vis Icon" . IconNumber, Name)
             } else {
-                Config := RuleSetsDir . "\" . CurrentRule . ".ini"
+                Config := ProfileSetsDir . "\" . CurrentProfile . ".ini"
 
                 IME := IniRead(Config, Name, "IME", "")
 
@@ -268,42 +302,44 @@ StartStopAction(HotkeyName)
 
     Running := !Running
 
+    RefreshTrayMenu()
+
     TrayTip(Running ? "输入法自动切换已启动" : "输入法自动切换已停止")
 }
 
-RuleSetsAction(HotkeyName)
+ProfileSetsAction(HotkeyName)
 {
     global Win
-    global RuleSets
-    global CurrentRule
-    global RuleSetsList
-    global RuleNameEdit
+    global ProfileSets
+    global CurrentProfile
+    global ProfileSetsList
+    global ProfileNameEdit
 
-    loop RuleSets.Length
+    loop ProfileSets.Length
     {
-        if (RuleSets[A_Index] = CurrentRule)
+        if (ProfileSets[A_Index] = CurrentProfile)
         {
             Index := A_Index
         }
     }
 
-    if Index = RuleSets.Length
+    if Index = ProfileSets.Length
     {
         Index := 1
     } else {
         Index++
     }
 
-    CurrentRule := RuleSets[Index]
+    CurrentProfile := ProfileSets[Index]
 
-    RuleSetsList.Choose(Index)
-    RuleNameEdit.Value := CurrentRule
+    ProfileSetsList.Choose(Index)
+    ProfileNameEdit.Value := CurrentProfile
 
-    IniWrite(CurrentRule, ConfigFile, "Config", "CurrentRule")
+    IniWrite(CurrentProfile, ConfigFile, "Config", "CurrentProfile")
 
     Refresh()
 
-    TrayTip("已切换至预设：" . CurrentRule)
+    TrayTip("已切换至预设：" . CurrentProfile)
 }
 
 TrayMenuHandler(ItemName, ItemPos, MyMenu)
@@ -311,10 +347,39 @@ TrayMenuHandler(ItemName, ItemPos, MyMenu)
     if (ItemName = "退出")
     {
         ExitApp()
+
+        return
     } else if (ItemName = "重启")
     {
         Reload()
+
+        return
     }
+}
+
+SwitchProfileHandler(ItemName, ItemPos, MyMenu)
+{
+    global CurrentProfile
+    global ProfileSetsList
+    global ProfileNameEdit
+
+    CurrentProfile := ItemName
+
+    for i, Profile in ProfileSets {
+        if (Profile = CurrentProfile) {
+            ProfileSetsList.Choose(i)
+        }
+    }
+
+    ProfileNameEdit.Value := CurrentProfile
+
+    IniWrite(CurrentProfile, ConfigFile, "Config", "CurrentProfile")
+
+    Refresh()
+
+    RefreshTrayMenu()
+
+    TrayTip("已切换至预设：" . CurrentProfile)
 }
 
 NotifyIcon(wParam, lParam, msg, hwnd)
@@ -332,70 +397,72 @@ HotkeyHandler(HotkeyControl, Info)
     if (HotkeyControl.name = "ChosenStartSopHotkey")
     {
         IniWrite(HotkeyControl.value, ConfigFile, "Hotkeys", "StartStop")
-    } else if (HotkeyControl.name = "ChosenRuleSetsHotkey")
+    } else if (HotkeyControl.name = "ChosenProfileSetsHotkey")
     {
-        IniWrite(HotkeyControl.value, ConfigFile, "Hotkeys", "RuleSets")
+        IniWrite(HotkeyControl.value, ConfigFile, "Hotkeys", "ProfileSets")
     }
 }
 
-RuleSetsChangeHandler(Control, Info)
+ProfileSetsChangeHandler(Control, Info)
 {
-    global CurrentRule
+    global CurrentProfile
 
-    RuleNameEdit.Value := Control.Text
+    ProfileNameEdit.Value := Control.Text
 
-    CurrentRule := Control.Text
+    CurrentProfile := Control.Text
 
-    IniWrite(CurrentRule, ConfigFile, "Config", "CurrentRule")
+    IniWrite(CurrentProfile, ConfigFile, "Config", "CurrentProfile")
 
     Refresh()
 }
 
-AddRule(Control, Info)
+AddProfile(Control, Info)
 {
-    global RuleSetsDir
-    global RuleSets
+    global ProfileSetsDir
+    global ProfileSets
 
-    FileName := RuleNameEdit.value
+    FileName := ProfileNameEdit.value
 
     if ( not FileName)
     {
         return
     }
 
-    FileFullName := RuleSetsDir . "\" . FileName . ".ini"
+    FileFullName := ProfileSetsDir . "\" . FileName . ".ini"
 
     if (FileExist(FileFullName))
     {
         return
     }
 
-    if ( not DirExist(RuleSetsDir))
+    if ( not DirExist(ProfileSetsDir))
     {
-        DirCreate(RuleSetsDir)
+        DirCreate(ProfileSetsDir)
     }
 
     FileAppend("", FileFullName, "UTF-16")
 
-    ScanRuleSets()
+    ScanProfileSets()
 
-    RuleSetsList.Delete()
-    RuleSetsList.Add(RuleSets)
+    ProfileSetsList.Delete()
+    ProfileSetsList.Add(ProfileSets)
+
+    RefreshTrayMenu()
 }
 
-RemoveRule(Control, Info)
+RemoveProfile(Control, Info)
 {
-    global RuleSetsDir
-    global RuleSets
+    global ProfileSetsDir
+    global ProfileSets
 
-    FileName := RuleNameEdit.value
+    FileName := ProfileNameEdit.value
 
     if ( not FileName)
     {
         return
     }
 
-    FileFullName := RuleSetsDir . "\" . FileName . ".ini"
+    FileFullName := ProfileSetsDir . "\" . FileName . ".ini"
 
     if ( not FileExist(FileFullName))
     {
@@ -404,20 +471,22 @@ RemoveRule(Control, Info)
 
     FileDelete(FileFullName)
 
-    ScanRuleSets()
+    ScanProfileSets()
 
-    RuleSetsList.Delete()
-    RuleSetsList.Add(RuleSets)
+    ProfileSetsList.Delete()
+    ProfileSetsList.Add(ProfileSets)
+
+    RefreshTrayMenu()
 }
 
 LVItemCheckHandler(Control, Item, Checked)
 {
-    global CurrentRule
-    global RuleSetsDir
+    global CurrentProfile
+    global ProfileSetsDir
 
-    Config := RuleSetsDir . "\" . CurrentRule . ".ini"
+    Config := ProfileSetsDir . "\" . CurrentProfile . ".ini"
 
-    if ( not CurrentRule) {
+    if ( not CurrentProfile) {
         MsgBox("请先选择预设")
     }
 
@@ -429,15 +498,15 @@ LVItemCheckHandler(Control, Item, Checked)
 ;************************** Utils ********************************
 SetImeForProcess(Process, IME, Checked)
 {
-    global CurrentRule
-    global RuleSetsDir
+    global CurrentProfile
+    global ProfileSetsDir
 
-    if ( not CurrentRule)
+    if ( not CurrentProfile)
     {
         return
     }
 
-    Config := RuleSetsDir . "\" . CurrentRule . ".ini"
+    Config := ProfileSetsDir . "\" . CurrentProfile . ".ini"
 
     if (Checked)
     {
@@ -454,16 +523,16 @@ RegisterHotkeys()
     Hotkey("Esc", HideWindow)
 
     global StartStopHotkey
-    global RuleSetsHotkey
+    global ProfileSetsHotkey
 
     if (StartStopHotkey)
     {
         Hotkey(StartStopHotkey, StartStopAction)
     }
 
-    if (RuleSetsHotkey)
+    if (ProfileSetsHotkey)
     {
-        Hotkey(RuleSetsHotkey, RuleSetsAction)
+        Hotkey(ProfileSetsHotkey, ProfileSetsAction)
     }
 }
 ;************************** Entry *******************************
@@ -482,11 +551,11 @@ Start()
 
     Entry() {
         global Running
-        global CurrentRule
+        global CurrentProfile
 
-        if (Running && CurrentRule)
+        if (Running && CurrentProfile)
         {
-            ConfigFile := RuleSetsDir . "\" . CurrentRule . ".ini"
+            ConfigFile := ProfileSetsDir . "\" . CurrentProfile . ".ini"
 
             try
             {
@@ -525,7 +594,7 @@ Main()
 
     InitConfigs()
 
-    ScanRuleSets()
+    ScanProfileSets()
 
     CreateGUI()
 
