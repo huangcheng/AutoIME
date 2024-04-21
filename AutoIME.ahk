@@ -224,9 +224,12 @@ AddProcessToListView()
                 Config := ProfileSetsDir . "\" . CurrentProfile . ".ini"
 
                 IME := IniRead(Config, Name, "IME", "")
+                Enable := IniRead(Config, Name, "Enable", "0")
+
+                Check := Enable = "1" ? "Check" : ""
 
                 if (IME) {
-                    LV.Add("Vis Check Icon" . IconNumber, Name, IME)
+                    LV.Add("Vis Icon" . IconNumber . " " . Check, Name, IME)
                 } else {
                     LV.Add("Vis Icon" . IconNumber, Name)
                 }
@@ -269,9 +272,7 @@ ContextMenuHandler(ItemName, *)
         ItemState := SendMessage(0x102C, RowNumber - 1, 0xF000, LV)
         IsChecked := (ItemState >> 12) - 1
 
-        if (IsChecked) {
-            SetImeForProcess(LV.GetText(RowNumber, 1), ItemName = "清除" ? "" : ItemName, true)
-        }
+        SetImeForProcess(LV.GetText(RowNumber, 1), ItemName = "清除" ? "" : ItemName, ItemName = "清除" ? false : IsChecked)
 
         if (ItemName = "清除")
         {
@@ -318,6 +319,10 @@ ProfileSetsAction(HotkeyName)
     global CurrentProfile
     global ProfileSetsList
     global ProfileNameEdit
+
+    if ( not ProfileSets.Length) {
+        return
+    }
 
     loop ProfileSets.Length
     {
@@ -507,13 +512,15 @@ SetImeForProcess(Process, IME, Checked)
 
     Config := ProfileSetsDir . "\" . CurrentProfile . ".ini"
 
+    IniWrite(IME, Config, Process, "IME")
+
     if (Checked)
     {
-        IniWrite(IME, Config, Process, "IME")
+        IniWrite("1", Config, Process, "Enable")
     }
     else
     {
-        IniDelete(Config, Process)
+        IniWrite("0", Config, Process, "Enable")
     }
 }
 
@@ -603,7 +610,9 @@ Start()
 
                 IME := IniRead(ConfigFile, Name, "IME", "")
 
-                if (IME)
+                Enable := IniRead(ConfigFile, Name, "Enable", "0")
+
+                if (IME && Enable = "1")
                 {
                     DllCall("lib\ime\SetIME", "Str", IME)
                 }
