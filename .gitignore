@@ -96,3 +96,5 @@ _deps
 
 .idea
 cmake-build-*
+
+*.ini
