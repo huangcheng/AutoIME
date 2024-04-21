@@ -143,57 +143,63 @@ AddProcessToListView()
 
     for HWND in HWNDs
     {
-        hProcess := DllCall("Oleacc\GetProcessHandleFromHwnd", "Ptr", HWND)
-
-        pid := DllCall("GetProcessId", "Ptr", hProcess, "UInt")
-
-        Name := ProcessGetName(pid)
-        Path := ProcessGetPath(pid)
-
-        if store.Has(Name)
-            continue
-
-        store[Name] := 1
-
-        if not DllCall(
-            "Shell32\SHGetFileInfoW",
-            "Str",
-            Path,
-            "Uint",
-            0,
-            "Ptr",
-            sfi,
-            "UInt",
-            sfi_size,
-            "UInt",
-            0x101
-        )
+        try
         {
-            IconNumber := 9999999
-        }
-        else {
-            hIcon := NumGet(sfi, 0, "Ptr")
+            hProcess := DllCall("Oleacc\GetProcessHandleFromHwnd", "Ptr", HWND)
 
-            IconNumber := DllCall("ImageList_ReplaceIcon", "Ptr", ImageListID, "Int", -1, "Ptr", hIcon) + 1
+            pid := DllCall("GetProcessId", "Ptr", hProcess, "UInt")
 
-            DllCall("DestroyIcon", "Ptr", hIcon)
-        }
+            Name := ProcessGetName(pid)
+            Path := ProcessGetPath(pid)
 
-        if ( not CurrentRule) {
-            LV.Add("Vis Icon" . IconNumber, Name)
-        } else {
-            Config := RuleSetsDir . "\" . CurrentRule . ".ini"
+            if store.Has(Name)
+                continue
 
-            IME := IniRead(Config, Name, "IME", "")
+            store[Name] := 1
 
-            if (IME) {
-                LV.Add("Vis Check Icon" . IconNumber, Name, IME)
-            } else {
-                LV.Add("Vis Icon" . IconNumber, Name)
+            if not DllCall(
+                "Shell32\SHGetFileInfoW",
+                "Str",
+                Path,
+                "Uint",
+                0,
+                "Ptr",
+                sfi,
+                "UInt",
+                sfi_size,
+                "UInt",
+                0x101
+            )
+            {
+                IconNumber := 9999999
             }
-        }
+            else {
+                hIcon := NumGet(sfi, 0, "Ptr")
 
-        DllCall("CloseHandle", "Ptr", hProcess)
+                IconNumber := DllCall("ImageList_ReplaceIcon", "Ptr", ImageListID, "Int", -1, "Ptr", hIcon) + 1
+
+                DllCall("DestroyIcon", "Ptr", hIcon)
+            }
+
+            if ( not CurrentRule) {
+                LV.Add("Vis Icon" . IconNumber, Name)
+            } else {
+                Config := RuleSetsDir . "\" . CurrentRule . ".ini"
+
+                IME := IniRead(Config, Name, "IME", "")
+
+                if (IME) {
+                    LV.Add("Vis Check Icon" . IconNumber, Name, IME)
+                } else {
+                    LV.Add("Vis Icon" . IconNumber, Name)
+                }
+            }
+
+            DllCall("CloseHandle", "Ptr", hProcess)
+        }
+        catch
+        {
+        }
     }
 
     LV.ModifyCol()
@@ -503,12 +509,10 @@ Start()
                 {
                     DllCall("lib\ime\SetIME", "Str", IME)
                 }
+
+                DllCall("CloseHandle", "Ptr", Process)
             } catch
             {
-            }
-            finally
-            {
-                DllCall("CloseHandle", "Ptr", Process)
             }
         }
     }
