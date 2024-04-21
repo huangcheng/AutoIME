@@ -63,6 +63,7 @@ CreateGUI()
 
     global LV := Win.Add("ListView", "+Checked +Redraw +Report R14 X10 " . GuiWidth, ["进程名", "输入状态"])
     LV.OnEvent("ContextMenu", ShowContextMenu)
+    LV.OnEvent("ItemCheck", LVItemCheckHandler)
     LV.Focus()
 
     ;************************** RuleSets GroupBox *******************************
@@ -104,9 +105,14 @@ CreateContextMenu()
 
     for i, IME in IMEs
     {
-        ContextMenu.Add(IME, AssociateInputMethod)
+        ContextMenu.Add(IME, ContextMenuHandler)
     }
 
+    ContextMenu.Add()
+    ContextMenu.Add("清除", ContextMenuHandler)
+
+    ContextMenu.Add()
+    ContextMenu.Add("刷新", ContextMenuHandler)
 }
 
 CreateTrayMenu()
@@ -122,6 +128,7 @@ CreateTrayMenu()
 AddProcessToListView()
 {
     global LV
+    global CurrentRule
 
     store := Map()
 
@@ -172,7 +179,19 @@ AddProcessToListView()
             DllCall("DestroyIcon", "Ptr", hIcon)
         }
 
-        LV.Add("Vis Icon" . IconNumber, Name)
+        if ( not CurrentRule) {
+            LV.Add("Vis Icon" . IconNumber, Name)
+        } else {
+            Config := RuleSetsDir . "\" . CurrentRule . ".ini"
+
+            IME := IniRead(Config, Name, "IME", "")
+
+            if (IME) {
+                LV.Add("Vis Check Icon" . IconNumber, Name, IME)
+            } else {
+                LV.Add("Vis Icon" . IconNumber, Name)
+            }
+        }
 
         DllCall("CloseHandle", "Ptr", hProcess)
     }
@@ -182,9 +201,16 @@ AddProcessToListView()
 
 ;************************** Callbacks *******************************
 
-AssociateInputMethod(ItemName, *)
+ContextMenuHandler(ItemName, *)
 {
     global LV
+
+    if (ItemName = "刷新")
+    {
+        Refresh()
+
+        return
+    }
 
     FocusedRowNumber := LV.GetNext(0, "F")
 
@@ -193,6 +219,21 @@ AssociateInputMethod(ItemName, *)
         return
     }
 
+    ItemState := SendMessage(0x102C, FocusedRowNumber - 1, 0xF000, LV)
+    IsChecked := (ItemState >> 12) - 1
+
+    if (IsChecked) {
+        SetImeForProcess(LV.GetText(FocusedRowNumber, 1), ItemName = "清除" ? "" : ItemName, true)
+    }
+
+    if (ItemName = "清除")
+    {
+        LV.Modify(FocusedRowNumber, , , "")
+
+        LV.ModifyCol()
+
+        return
+    }
 
     LV.Modify(FocusedRowNumber, , , ItemName)
 
@@ -202,6 +243,8 @@ AssociateInputMethod(ItemName, *)
 ShowContextMenu(LV, Item, IsRightClick, X, Y)
 {
     global ContextMenu
+
+    CreateContextMenu()
 
     ContextMenu.Show(X, Y)
 }
@@ -225,8 +268,36 @@ StartStopAction(HotkeyName)
 RuleSetsAction(HotkeyName)
 {
     global Win
+    global RuleSets
+    global CurrentRule
+    global RuleSetsList
+    global RuleNameEdit
 
-    MsgBox("RuleSetsAction")
+    loop RuleSets.Length
+    {
+        if (RuleSets[A_Index] = CurrentRule)
+        {
+            Index := A_Index
+        }
+    }
+
+    if Index = RuleSets.Length
+    {
+        Index := 1
+    } else {
+        Index++
+    }
+
+    CurrentRule := RuleSets[Index]
+
+    RuleSetsList.Choose(Index)
+    RuleNameEdit.Value := CurrentRule
+
+    IniWrite(CurrentRule, ConfigFile, "Config", "CurrentRule")
+
+    Refresh()
+
+    TrayTip("已切换至预设：" . CurrentRule)
 }
 
 TrayMenuHandler(ItemName, ItemPos, MyMenu)
@@ -267,9 +338,11 @@ RuleSetsChangeHandler(Control, Info)
 
     RuleNameEdit.Value := Control.Text
 
-    CurrentRule := Control.Value
+    CurrentRule := Control.Text
 
     IniWrite(CurrentRule, ConfigFile, "Config", "CurrentRule")
+
+    Refresh()
 }
 
 AddRule(Control, Info)
@@ -331,6 +404,44 @@ RemoveRule(Control, Info)
     RuleSetsList.Add(RuleSets)
 }
 
+LVItemCheckHandler(Control, Item, Checked)
+{
+    global CurrentRule
+    global RuleSetsDir
+
+    Config := RuleSetsDir . "\" . CurrentRule . ".ini"
+
+    if ( not CurrentRule) {
+        MsgBox("请先选择预设")
+    }
+
+    Process := Control.GetText(Item, 1)
+    IME := Control.GetText(Item, 2)
+
+    SetImeForProcess(Process, IME, Checked)
+}
+;************************** Utils ********************************
+SetImeForProcess(Process, IME, Checked)
+{
+    global CurrentRule
+    global RuleSetsDir
+
+    if ( not CurrentRule)
+    {
+        return
+    }
+
+    Config := RuleSetsDir . "\" . CurrentRule . ".ini"
+
+    if (Checked)
+    {
+        IniWrite(IME, Config, Process, "IME")
+    }
+    else
+    {
+        IniDelete(Config, Process)
+    }
+}
 ;************************** Hotkeys *******************************
 RegisterHotkeys()
 {
@@ -349,8 +460,59 @@ RegisterHotkeys()
         Hotkey(RuleSetsHotkey, RuleSetsAction)
     }
 }
+;************************** Entry *******************************
+Refresh()
+{
+    global LV
+
+    LV.Delete()
+    AddProcessToListView()
+}
 
 ;************************** Entry *******************************
+Start()
+{
+    SetTimer(Entry, 2000)
+
+    Entry() {
+        global Running
+        global CurrentRule
+
+        if (Running && CurrentRule)
+        {
+            ConfigFile := RuleSetsDir . "\" . CurrentRule . ".ini"
+
+            try
+            {
+                HWND := DllCall("GetForegroundWindow")
+
+                if ( not HWND)
+                {
+                    return
+                }
+
+                Process := DllCall("Oleacc\GetProcessHandleFromHwnd", "Ptr", HWND)
+
+                pid := DllCall("GetProcessId", "Ptr", Process, "UInt")
+
+                Name := ProcessGetName(pid)
+
+                IME := IniRead(ConfigFile, Name, "IME", "")
+
+                if (IME)
+                {
+                    DllCall("lib\ime\SetIME", "Str", IME)
+                }
+            } catch
+            {
+            }
+            finally
+            {
+                DllCall("CloseHandle", "Ptr", Process)
+            }
+        }
+    }
+}
 
 
 Main()
@@ -363,13 +525,13 @@ Main()
 
     CreateGUI()
 
-    CreateContextMenu()
-
     CreateTrayMenu()
 
     AddProcessToListView()
 
     RegisterHotkeys()
+
+    Start()
 }
 
 Main()
