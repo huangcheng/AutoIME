@@ -2,15 +2,60 @@
 
 #SingleInstance Force
 
-; Initialize GUI
+;************************** Config & Settings *******************************
+
+InitGlobals()
+{
+    global RuleSetsDir := A_WorkingDir . "\rules"
+
+    global ConfigFile := A_WorkingDir . "\config.ini"
+}
+
+InitConfigs()
+{
+    global CurrentRule := IniRead(ConfigFile, "Config", "CurrentRule", "")
+
+    global RuleSetsDir
+
+    global RuleSets := []
+
+    Loop Files, RuleSetsDir . "\*.ini", "F"
+    {
+        RuleSets.Push(A_LoopFileFullPath)
+    }
+}
+
+;************************** GUI Creating *******************************
+
 CreateGUI()
 {
+    GuiWidth := "w248"
+    InputWdith := "W130"
+    ControlHeight := "H20"
+
     global Win := Gui()
     Win.Opt("+LastFound +AlwaysOnTop -Caption +ToolWindow")
 
-    global LV := Win.Add("ListView", "+Checked +Redraw +Report r14 x10 w208", ["进程名", "输入状态"])
+    ;************************** Hotkeys GroupBox *******************************
+    Win.Add("GroupBox", "Wrap x10 r3 h0 " . GuiWidth, "快捷键")
+    Win.Add("Text", "X20 YP+20 W60 " . ControlHeight, "开关快捷键")
+    Win.Add("Hotkey", "XP+66 YP-2 vChosenShowHideHotkey " . ControlHeight)
 
+    Win.Add("Text", "X20 Y54 W60 " . ControlHeight, "预设快捷键")
+    Win.Add("Hotkey", "XP+66 YP-2 vChosenStartStpHotkey " . ControlHeight)
+
+    global LV := Win.Add("ListView", "+Checked +Redraw +Report R14 X10 " . GuiWidth, ["进程名", "输入状态"])
     LV.OnEvent("ContextMenu", ShowContextMenu)
+
+    ;************************** RuleSets GroupBox *******************************
+    Win.Add("GroupBox", "Wrap x10 r3 h1 " . GuiWidth, "预设")
+    Win.Add("Text", "X20 YP+20 W50 " . ControlHeight, "预设名称")
+    global RuleEdit := Win.Add("Edit", "XP+50 YP-3 " . InputWdith . " " . ControlHeight)
+    Win.Add("Button", "XP+135 W20 " . ControlHeight, "＋")
+    Win.Add("Button", "XP+25 W20 " . ControlHeight, "－")
+
+    Win.Add("Text", "X20 YP+30 W50 " . ControlHeight, "预设选择")
+    Win.Add("ComboBox", "XP+50 YP-3 vColorChoice " . InputWdith, RuleSets)
 
     Win.Show
 }
@@ -37,17 +82,13 @@ CreateContextMenu()
 
 }
 
-AssociateInputMethod(ItemName, *)
+CreateTrayMenu()
 {
-    global LV
+    A_TrayMenu.Delete()
 
-    FocusedRowNumber := LV.GetNext(0, "F")
-    if not FocusedRowNumber
-        return
+    A_TrayMenu.Add("退出", TrayMenuHandler)
 
-    LV.Modify(FocusedRowNumber, , , ItemName)
-
-    LV.ModifyCol()
+    OnMessage(0x404, NotifyIcon)
 }
 
 AddProcessToListView()
@@ -111,6 +152,29 @@ AddProcessToListView()
     LV.ModifyCol()
 }
 
+;************************** Callbacks *******************************
+
+AssociateInputMethod(ItemName, *)
+{
+    global LV
+
+    FocusedRowNumber := LV.GetNext(0, "F")
+
+    if ( not FocusedRowNumber)
+    {
+        return
+    }
+
+
+    LV.Modify(FocusedRowNumber, , , ItemName)
+
+    LV.ModifyCol()
+
+    global RuleEdit
+
+    OutputDebug(RuleEdit.Value)
+}
+
 ShowContextMenu(LV, Item, IsRightClick, X, Y)  ; In response to right-click or Apps key.
 {
     global ContextMenu
@@ -118,12 +182,60 @@ ShowContextMenu(LV, Item, IsRightClick, X, Y)  ; In response to right-click or A
     ContextMenu.Show(X, Y)
 }
 
+ShowHideHotkeyChange()
+{
+    global Win
+
+    OutputDebug(Win.ChosenShowHideHotkey.Value)
+}
+
+HideWindow(HotkeyName)
+{
+    global Win
+
+    Win.Hide
+}
+
+TrayMenuHandler(ItemName, ItemPos, MyMenu)
+{
+    if (ItemName = "退出")
+    {
+        ExitApp()
+    }
+}
+
+NotifyIcon(wParam, lParam, msg, hwnd)
+{
+    if (lParam = 0x202)
+    {
+        Win.Show
+    }
+}
+
+;************************** Hotkeys *******************************
+RegisterHotkeys()
+{
+    Hotkey("Esc", HideWindow)
+}
+
+;************************** Entry *******************************
+
 
 Main()
 {
+    InitGlobals()
+
+    InitConfigs()
+
     CreateGUI()
+
     CreateContextMenu()
+
+    CreateTrayMenu()
+
     AddProcessToListView()
+
+    RegisterHotkeys()
 }
 
 Main()
