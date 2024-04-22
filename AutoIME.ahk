@@ -170,7 +170,9 @@ CreateGUI()
         Win.Hide()
 
         Visible := false
-    } else {
+    }
+    else
+    {
         Win.Show()
 
         Visible := true
@@ -211,10 +213,12 @@ CreateTrayMenu()
 
     SubMenu := Menu()
 
-    for i, Profile in ProfileSets {
+    for i, Profile in ProfileSets
+    {
         SubMenu.Add(Profile, SwitchProfileHandler)
 
-        if (Profile = CurrentProfile) {
+        if (Profile = CurrentProfile)
+        {
             SubMenu.Check(Profile)
         }
     }
@@ -257,7 +261,9 @@ AddProcessToListView()
             Path := ProcessGetPath(pid)
 
             if store.Has(Name)
+            {
                 continue
+            }
 
             store[Name] := 1
 
@@ -277,7 +283,8 @@ AddProcessToListView()
             {
                 IconNumber := 9999999
             }
-            else {
+            else
+            {
                 hIcon := NumGet(sfi, 0, "Ptr")
 
                 IconNumber := DllCall("ImageList_ReplaceIcon", "Ptr", ImageListID, "Int", -1, "Ptr", hIcon) + 1
@@ -287,7 +294,9 @@ AddProcessToListView()
 
             if ( not CurrentProfile) {
                 LV.Add("Vis Icon" . IconNumber, Name)
-            } else {
+            }
+            else
+            {
                 Config := ProfileSetsDir . "\" . CurrentProfile . ".ini"
 
                 IME := IniRead(Config, Name, "IME", "")
@@ -344,7 +353,9 @@ ContextMenuHandler(ItemName, *)
         if (ItemName = "清除")
         {
             LV.Modify(RowNumber, , , "")
-        } else {
+        }
+        else
+        {
             LV.Modify(RowNumber, , , ItemName)
         }
     }
@@ -387,7 +398,8 @@ ProfileSetsAction(HotkeyName)
     global ProfileSetsList
     global ProfileNameEdit
 
-    if ( not ProfileSets.Length) {
+    if ( not ProfileSets.Length)
+    {
         return
     }
 
@@ -404,7 +416,9 @@ ProfileSetsAction(HotkeyName)
     if Index = ProfileSets.Length
     {
         Index := 1
-    } else {
+    }
+    else
+    {
         Index++
     }
 
@@ -430,7 +444,9 @@ ShowHideWindowAction(HotkeyName)
         Win.Hide()
 
         Visible := false
-    } else {
+    }
+    else
+    {
         Win.Show()
 
         Visible := true
@@ -444,7 +460,8 @@ TrayMenuHandler(ItemName, ItemPos, MyMenu)
         ExitApp()
 
         return
-    } else if (ItemName = "重启")
+    }
+    else if (ItemName = "重启")
     {
         Reload()
 
@@ -492,10 +509,12 @@ HotkeyHandler(HotkeyControl, Info)
     if (HotkeyControl.name = "ChosenStartSopHotkey")
     {
         IniWrite(HotkeyControl.value, ConfigFile, "Hotkeys", "StartStop")
-    } else if (HotkeyControl.name = "ChosenProfileSetsHotkey")
+    }
+    else if (HotkeyControl.name = "ChosenProfileSetsHotkey")
     {
         IniWrite(HotkeyControl.value, ConfigFile, "Hotkeys", "ProfileSets")
-    } else if (HotkeyControl.name = "ChosenShowHideHotkey")
+    }
+    else if (HotkeyControl.name = "ChosenShowHideHotkey")
     {
         IniWrite(HotkeyControl.value, ConfigFile, "Hotkeys", "ShowHide")
     }
@@ -588,7 +607,8 @@ LVItemCheckHandler(Control, Item, Checked)
 
     Config := ProfileSetsDir . "\" . CurrentProfile . ".ini"
 
-    if ( not CurrentProfile) {
+    if ( not CurrentProfile)
+    {
         MsgBox("请先选择预设")
     }
 
@@ -616,7 +636,8 @@ CheckHandler(Control, Info)
     else if (Control.Name = "StartMinimized")
     {
         IniWrite(Control.Value, ConfigFile, "Config", "StartMinimized")
-    } else if (Control.Name = "EnableGlobalDefaultIME")
+    }
+    else if (Control.Name = "EnableGlobalDefaultIME")
     {
         IniWrite(Control.Value, ConfigFile, "Config", "EnableGlobalDefaultIME")
     }
@@ -659,8 +680,10 @@ SetCurrentProfile(ProfileName)
     ProfileSetsList.Delete()
     ProfileSetsList.Add(ProfileSets)
 
-    for i, Profile in ProfileSets {
-        if (Profile = ProfileName) {
+    for i, Profile in ProfileSets
+    {
+        if (Profile = ProfileName)
+        {
             ProfileSetsList.Choose(i)
         }
     }
@@ -752,7 +775,8 @@ Start()
                 }
 
                 DllCall("CloseHandle", "Ptr", Process)
-            } catch
+            }
+            catch
             {
             }
         }
