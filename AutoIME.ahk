@@ -28,6 +28,7 @@ InitConfigs()
 
     global StartStopHotkey := IniRead(ConfigFile, "Hotkeys", "StartStop", "")
     global ProfileSetsHotkey := IniRead(ConfigFile, "Hotkeys", "ProfileSets", "")
+    global ShowHideHotkey := IniRead(ConfigFile, "Hotkeys", "ShowHide", "")
 
     DefaultProfile := ProfileSetsDir . "\default.ini"
 
@@ -60,6 +61,11 @@ ScanProfileSets()
 
 CreateGUI()
 {
+    global StartStopHotkey
+    global ProfileSetsHotkey
+    global ShowHideHotkey
+    global CurrentProfile
+
     GuiWidth := "w248"
     InputWdith := "W130"
     ControlHeight := "H20"
@@ -68,17 +74,22 @@ CreateGUI()
     Win.Opt("+LastFound -AlwaysOnTop -Caption +ToolWindow")
 
     ;************************** Hotkeys GroupBox *******************************
-    global StartStopHotkey
-    global ProfileSetsHotkey
-    global CurrentProfile
+    Win.Add("GroupBox", "Wrap x10 r6 h0 " . GuiWidth, "快捷键")
 
-    Win.Add("GroupBox", "Wrap x10 r3 h0 " . GuiWidth, "快捷键")
     Win.Add("Text", "X20 YP+20 W60 " . ControlHeight, "开关快捷键")
     Win.Add("Hotkey", "XP+66 YP-2 vChosenStartSopHotkey " . ControlHeight, StartStopHotkey).OnEvent("Change", HotkeyHandler)
 
-    Win.Add("Text", "X20 Y54 W60 " . ControlHeight, "预设快捷键")
+    Win.Add("Text", "X20 YP+30 W60 " . ControlHeight, "预设快捷键")
     Win.Add("Hotkey", "XP+66 YP-2 vChosenProfileSetsHotkey " . ControlHeight, ProfileSetsHotkey).OnEvent("Change", HotkeyHandler)
 
+    Win.Add("Text", "X20 YP+30 W60 " . ControlHeight, "显隐快捷键")
+    Win.Add("Hotkey", "XP+66 YP-2 vChosenShowHideHotkey " . ControlHeight, ShowHideHotkey).OnEvent("Change", HotkeyHandler)
+
+    Win.Add("Checkbox", "X20 YP+30 vHideTrayIcon W90 " . ControlHeight, "隐藏托盘图标")
+
+    Win.Add("Checkbox", "XP110 YP vStartMinimized W90 " . ControlHeight, "最小化启动")
+
+    ;************************** Process List View *******************************
     global LV := Win.Add("ListView", "+Checked +Redraw +Report R14 X10 " . GuiWidth, ["进程名", "输入状态"])
     LV.OnEvent("ContextMenu", ShowContextMenu)
     LV.OnEvent("ItemCheck", LVItemCheckHandler)
