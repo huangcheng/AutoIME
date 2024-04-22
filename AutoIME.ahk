@@ -11,6 +11,10 @@ InitGlobals()
     global ConfigFile := A_WorkingDir . "\config.ini"
 
     global Running := true
+
+    global Visible := true
+
+    global IMEs := []
 }
 
 InitConfigs()
@@ -29,6 +33,12 @@ InitConfigs()
     global StartStopHotkey := IniRead(ConfigFile, "Hotkeys", "StartStop", "")
     global ProfileSetsHotkey := IniRead(ConfigFile, "Hotkeys", "ProfileSets", "")
     global ShowHideHotkey := IniRead(ConfigFile, "Hotkeys", "ShowHide", "")
+    global EnableGlobalDefaultIME := IniRead(ConfigFile, "Config", "EnableGlobalDefaultIME", "0")
+
+    global CurrentGlobalIME := IniRead(ConfigFile, "Config", "CurrentGlobalIME", "")
+
+    global StartMinimized := IniRead(ConfigFile, "Config", "StartMinimized", "0")
+    global ShowTrayIcon := IniRead(ConfigFile, "Config", "ShowTrayIcon", "1")
 
     DefaultProfile := ProfileSetsDir . "\default.ini"
 
@@ -40,6 +50,11 @@ InitConfigs()
         }
 
         FileAppend("", DefaultProfile, "UTF-16")
+    }
+
+    if (ShowTrayIcon = "0")
+    {
+        A_IconHidden := true
     }
 }
 
@@ -57,6 +72,22 @@ ScanProfileSets()
     }
 }
 
+ScanIMEs()
+{
+    global IMEs
+
+    count := 256
+
+    buffer_size := A_PtrSize * count
+
+    buf := Buffer(buffer_size, 0)
+
+    DllCall("lib\ime\GetIMEs", "Ptr", buf, "UInt", count)
+
+    IMEs := StrGet(buf)
+    IMEs := StrSplit(IMEs, "|")
+}
+
 ;************************** GUI Creating *******************************
 
 CreateGUI()
@@ -65,6 +96,13 @@ CreateGUI()
     global ProfileSetsHotkey
     global ShowHideHotkey
     global CurrentProfile
+    global IMEs
+    global StartMinimized
+    global Visible
+    global ShowTrayIcon
+    global StartMinimized
+    global EnableGlobalDefaultIME
+    global CurrentGlobalIME
 
     GuiWidth := "w248"
     InputWdith := "W130"
@@ -85,9 +123,9 @@ CreateGUI()
     Win.Add("Text", "X20 YP+30 W60 " . ControlHeight, "显隐快捷键")
     Win.Add("Hotkey", "XP+66 YP-2 vChosenShowHideHotkey " . ControlHeight, ShowHideHotkey).OnEvent("Change", HotkeyHandler)
 
-    Win.Add("Checkbox", "X20 YP+30 vHideTrayIcon W90 " . ControlHeight, "隐藏托盘图标")
+    Win.Add("Checkbox", "X20 YP+30 vShowTrayIcon W90 " . ControlHeight . (ShowTrayIcon = "0" ? " Checked" : " "), "隐藏托盘图标").OnEvent("Click", CheckHandler)
 
-    Win.Add("Checkbox", "XP110 YP vStartMinimized W90 " . ControlHeight, "最小化启动")
+    Win.Add("Checkbox", "XP110 YP vStartMinimized W90 " . ControlHeight . (StartMinimized = "1" ? " Checked" : " "), "最小化启动").OnEvent("Click", CheckHandler)
 
     ;************************** Process List View *******************************
     global LV := Win.Add("ListView", "+Checked +Redraw +Report R14 X10 " . GuiWidth, ["进程名", "输入状态"])
@@ -96,7 +134,7 @@ CreateGUI()
     LV.Focus()
 
     ;************************** ProfileSets GroupBox *******************************
-    Win.Add("GroupBox", "Wrap x10 r3 h1 " . GuiWidth, "预设")
+    Win.Add("GroupBox", "Wrap x10 r4.5 h1 " . GuiWidth, "预设")
     Win.Add("Text", "X20 YP+20 W50 " . ControlHeight, "预设名称")
     global ProfileNameEdit := Win.Add("Edit", "XP+50 YP-3 " . InputWdith . " " . ControlHeight, CurrentProfile)
     Win.Add("Button", "XP+135 W20 " . ControlHeight, "＋").OnEvent("Click", AddProfile)
@@ -106,6 +144,11 @@ CreateGUI()
     global ProfileSetsList := Win.Add("DropDownList", "XP+50 YP-3 " . InputWdith, ProfileSets)
     ProfileSetsList.OnEvent("Change", ProfileSetsChangeHandler)
 
+    Win.Add("Checkbox", "X20 YP+30 vEnableGlobalDefaultIME W100 " . ControlHeight . (EnableGlobalDefaultIME = "1" ? " Checked" : " "), "设置全局默认").OnEvent("Click", CheckHandler)
+    global IMEsList := Win.Add("DropDownList", "XP+100 " . InputWdith, IMEs)
+    IMEsList.OnEvent("Change", IMEsListChangeHandler)
+
+
     loop ProfileSets.Length
     {
         if (ProfileSets[A_Index] = CurrentProfile)
@@ -114,23 +157,33 @@ CreateGUI()
         }
     }
 
-    Win.Show
+    loop IMEs.Length
+    {
+        if (IMEs[A_Index] = CurrentGlobalIME)
+        {
+            IMEsList.Choose(A_Index)
+        }
+    }
+
+    if (StartMinimized = "1")
+    {
+        Win.Hide()
+
+        Visible := false
+    } else {
+        Win.Show()
+
+        Visible := true
+    }
 }
 
 CreateContextMenu()
 {
+    global IMEs
+    global IMEsList
     global ContextMenu := Menu()
 
-    count := 256
-
-    buffer_size := A_PtrSize * count
-
-    buf := Buffer(buffer_size, 0)
-
-    DllCall("lib\ime\GetIMEs", "Ptr", buf, "UInt", count)
-
-    IMEs := StrGet(buf)
-    IMEs := StrSplit(IMEs, "|")
+    ScanIMEs()
 
     for i, IME in IMEs
     {
@@ -142,6 +195,9 @@ CreateContextMenu()
 
     ContextMenu.Add()
     ContextMenu.Add("刷新", ContextMenuHandler)
+
+    IMEsList.Delete()
+    IMEsList.Add(IMEs)
 }
 
 CreateTrayMenu()
@@ -364,6 +420,23 @@ ProfileSetsAction(HotkeyName)
     TrayTip("已切换至预设：" . CurrentProfile)
 }
 
+ShowHideWindowAction(HotkeyName)
+{
+    global Win
+    global Visible
+
+    if (Visible)
+    {
+        Win.Hide()
+
+        Visible := false
+    } else {
+        Win.Show()
+
+        Visible := true
+    }
+}
+
 TrayMenuHandler(ItemName, ItemPos, MyMenu)
 {
     if (ItemName = "退出")
@@ -422,6 +495,9 @@ HotkeyHandler(HotkeyControl, Info)
     } else if (HotkeyControl.name = "ChosenProfileSetsHotkey")
     {
         IniWrite(HotkeyControl.value, ConfigFile, "Hotkeys", "ProfileSets")
+    } else if (HotkeyControl.name = "ChosenShowHideHotkey")
+    {
+        IniWrite(HotkeyControl.value, ConfigFile, "Hotkeys", "ShowHide")
     }
 }
 
@@ -436,6 +512,15 @@ ProfileSetsChangeHandler(Control, Info)
     IniWrite(CurrentProfile, ConfigFile, "Config", "CurrentProfile")
 
     Refresh()
+}
+
+IMEsListChangeHandler(Control, Info)
+{
+    global CurrentGlobalIME
+
+    CurrentGlobalIME := Control.Text
+
+    IniWrite(CurrentGlobalIME, ConfigFile, "Config", "CurrentGlobalIME")
 }
 
 AddProfile(Control, Info)
@@ -512,6 +597,30 @@ LVItemCheckHandler(Control, Item, Checked)
 
     SetImeForProcess(Process, IME, Checked)
 }
+
+CheckHandler(Control, Info)
+{
+    if (Control.Name = "ShowTrayIcon")
+    {
+        IniWrite(Control.Value = 1 ? "0" : "1", ConfigFile, "Config", "ShowTrayIcon")
+
+        if (Control.Value = 1)
+        {
+            A_IconHidden := true
+        }
+        else
+        {
+            A_IconHidden := false
+        }
+    }
+    else if (Control.Name = "StartMinimized")
+    {
+        IniWrite(Control.Value, ConfigFile, "Config", "StartMinimized")
+    } else if (Control.Name = "EnableGlobalDefaultIME")
+    {
+        IniWrite(Control.Value, ConfigFile, "Config", "EnableGlobalDefaultIME")
+    }
+}
 ;************************** Utils ********************************
 SetImeForProcess(Process, IME, Checked)
 {
@@ -573,6 +682,7 @@ RegisterHotkeys()
 
     global StartStopHotkey
     global ProfileSetsHotkey
+    global ShowHideHotkey
 
     if (StartStopHotkey)
     {
@@ -582,6 +692,11 @@ RegisterHotkeys()
     if (ProfileSetsHotkey)
     {
         Hotkey(ProfileSetsHotkey, ProfileSetsAction)
+    }
+
+    if (ShowHideHotkey)
+    {
+        Hotkey(ShowHideHotkey, ShowHideWindowAction)
     }
 }
 ;************************** Entry *******************************
@@ -601,6 +716,8 @@ Start()
     Entry() {
         global Running
         global CurrentProfile
+        global EnableGlobalDefaultIME
+        global CurrentGlobalIME
 
         if (Running && CurrentProfile)
         {
@@ -629,6 +746,10 @@ Start()
                 {
                     DllCall("lib\ime\SetIME", "Str", IME)
                 }
+                else if (EnableGlobalDefaultIME = "1" && CurrentGlobalIME)
+                {
+                    DllCall("lib\ime\SetIME", "Str", CurrentGlobalIME)
+                }
 
                 DllCall("CloseHandle", "Ptr", Process)
             } catch
@@ -646,6 +767,8 @@ Main()
     InitConfigs()
 
     ScanProfileSets()
+
+    ScanIMEs()
 
     CreateGUI()
 
