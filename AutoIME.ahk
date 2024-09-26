@@ -110,6 +110,7 @@ CreateGUI()
 
     global Win := Gui()
     Win.Opt("+LastFound -AlwaysOnTop -Caption +ToolWindow")
+    Win.SetFont("s8", "Microsoft YaHei")
 
     ;************************** Hotkeys GroupBox *******************************
     Win.Add("GroupBox", "Wrap x10 r6 h0 " . GuiWidth, "快捷键")
